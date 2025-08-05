@@ -134,12 +134,24 @@ class TestFromCSVWithInterpolation(unittest.TestCase):
         self.complete_orc_file.writelines(complete_content)
         self.complete_orc_file.close()
     
-    def test_load_incomplete_without_interpolation_raises_error(self):
-        """Test loading incomplete file without interpolation flag raises ValueError."""
-        with self.assertRaises(ValueError) as context:
-            from_csv(self.incomplete_orc_file.name, fmt="orc", interpolate_missing=False)
+    def test_load_incomplete_without_interpolation_uses_zeros(self):
+        """Test loading incomplete file without interpolation flag uses zeros for missing values."""
+        pd = from_csv(self.incomplete_orc_file.name, fmt="orc", interpolate_missing=False)
         
-        self.assertIn("array must not contain infs or NaNs", str(context.exception))
+        # Should not have performed interpolation
+        self.assertFalse(pd.interpolation_performed)
+        
+        # Should have zeros where data was missing (backward compatible behavior)
+        has_zeros = False
+        for row in pd.boat_speeds:
+            for val in row:
+                if val == 0.0:
+                    has_zeros = True
+                    break
+            if has_zeros:
+                break
+        
+        self.assertTrue(has_zeros, "Should contain zeros for missing values when interpolation is disabled")
     
     def test_load_incomplete_with_interpolation(self):
         """Test loading incomplete file with interpolation enabled."""
@@ -238,15 +250,27 @@ class TestIncompleteDataExample(unittest.TestCase):
             for val in row:
                 self.assertGreaterEqual(val, 0.0, "All boat speeds should be non-negative")
     
-    def test_load_example_file_without_interpolation_raises_error(self):
-        """Test loading the example incomplete file without interpolation raises ValueError."""
+    def test_load_example_file_without_interpolation_uses_zeros(self):
+        """Test loading the example incomplete file without interpolation uses zeros."""
         if not os.path.exists(self.example_file):
             self.skipTest("Example file not found")
         
-        with self.assertRaises(ValueError) as context:
-            from_csv(self.example_file, fmt="orc", interpolate_missing=False)
+        pd = from_csv(self.example_file, fmt="orc", interpolate_missing=False)
         
-        self.assertIn("array must not contain infs or NaNs", str(context.exception))
+        # Should not have performed interpolation
+        self.assertFalse(pd.interpolation_performed)
+        
+        # Should have zeros where data was missing (backward compatible behavior)
+        has_zeros = False
+        for row in pd.boat_speeds:
+            for val in row:
+                if val == 0.0:
+                    has_zeros = True
+                    break
+            if has_zeros:
+                break
+        
+        self.assertTrue(has_zeros, "Example file should contain zeros for missing values when interpolation is disabled")
 
 
 if __name__ == '__main__':

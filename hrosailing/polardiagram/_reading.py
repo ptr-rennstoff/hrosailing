@@ -115,9 +115,9 @@ def _read_extern_format(file, fmt, interpolate_missing=False, interpolator=None)
     if fmt == "array":
         ws_res, wa_res, bsps = _read_from_array(file)
     elif fmt == "orc":
-        ws_res, wa_res, bsps = _read_orc_format(file)
+        ws_res, wa_res, bsps = _read_orc_format(file, interpolate_missing)
     else:
-        ws_res, wa_res, bsps = _read_opencpn_format(file)
+        ws_res, wa_res, bsps = _read_opencpn_format(file, interpolate_missing)
 
     # Apply interpolation to any format if requested
     interpolation_performed = False
@@ -137,7 +137,7 @@ def _read_from_array(file):
     return file_data[0, 1:], file_data[1:, 0], file_data[1:, 1:]
 
 
-def _read_orc_format(file):
+def _read_orc_format(file, interpolate_missing=False):
     csv_reader = csv.reader(file, delimiter=";")
 
     ws_res = _read_wind_speeds(csv_reader)
@@ -145,7 +145,7 @@ def _read_orc_format(file):
     # skip line of zeros
     next(csv_reader)
 
-    wa_res, bsps = _read_wind_angles_and_boat_speeds(csv_reader)
+    wa_res, bsps = _read_wind_angles_and_boat_speeds(csv_reader, mark_empty_with_nan=interpolate_missing)
 
     return ws_res, wa_res, bsps
 
@@ -154,23 +154,26 @@ def _read_wind_speeds(csv_reader):
     return [literal_eval(ws) for ws in next(csv_reader)[1:]]
 
 
-def _read_wind_angles_and_boat_speeds(csv_reader):
+def _read_wind_angles_and_boat_speeds(csv_reader, mark_empty_with_nan=False):
     wa_res = []
     bsps = []
+    
+    # Choose fill value based on whether we want to mark empty cells for interpolation
+    fill_value = np.nan if mark_empty_with_nan else 0.0
 
     for row in csv_reader:
         if row:  # Skip empty rows
             wa_res.append(literal_eval(row[0].replace("°", "")))
-            bsps.append([literal_eval(bsp) if bsp != "" else np.nan for bsp in row[1:]])
+            bsps.append([literal_eval(bsp) if bsp != "" else fill_value for bsp in row[1:]])
 
     return wa_res, bsps
 
 
-def _read_opencpn_format(file):
+def _read_opencpn_format(file, interpolate_missing=False):
     csv_reader = csv.reader(file, delimiter=",")
 
     ws_res = _read_wind_speeds(csv_reader)
-    wa_res, bsps = _read_wind_angles_and_boat_speeds(csv_reader)
+    wa_res, bsps = _read_wind_angles_and_boat_speeds(csv_reader, mark_empty_with_nan=interpolate_missing)
 
     return ws_res, wa_res, bsps
 
